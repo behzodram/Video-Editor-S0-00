@@ -1,0 +1,1 @@
+v 1.0.0 => main: Download un oxirigacha kutish, rasmni del, move add image/audio, auto set pngs by filename timings

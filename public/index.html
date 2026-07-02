@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Editor</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #15161a;
+    color: #e8e8ec;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  #topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px clamp(10px, 2vw, 20px); background: #1c1d22; border-bottom: 1px solid #2b2c33;
+    flex-wrap: wrap; gap: 8px;
+  }
+  #topbar h1 { font-size: 15px; font-weight: 600; color: #f2f2f5; display: flex; align-items: center; gap: 6px; }
+  #topbar .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn, button {
+    background: #2a2b32; color: #e8e8ec; border: 1px solid #3a3b44;
+    border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; transition: background .15s;
+    font-family: inherit; white-space: nowrap;
+  }
+  .btn:hover, button:hover { background: #35363f; }
+  button.primary { background: #4c6ef5; border-color: #4c6ef5; color: #fff; }
+  button.primary:hover { background: #3d5ce0; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+
+  #main { flex: 1; display: flex; min-height: 0; }
+
+  #sidebar {
+    width: clamp(200px, 20vw, 280px);
+    flex-shrink: 0;
+    background: #1c1d22; border-right: 1px solid #2b2c33;
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  .section { border-bottom: 1px solid #2b2c33; }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px;
+  }
+  .section-header .title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; color: #cfd0d6; }
+  .section-header .count {
+    background: #2a2b32; color: #9a9ba3; font-size: 11px; padding: 1px 7px; border-radius: 10px;
+  }
+  .add-label {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 6px; background: #2a2b32;
+    border: 1px solid #3a3b44; cursor: pointer; color: #e8e8ec; font-size: 14px;
+  }
+  .add-label:hover { background: #35363f; }
+  .section-body { padding: 0 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .media-item {
+    display: flex; align-items: center; gap: 8px; background: #23242b;
+    border: 1px solid #2b2c33; border-radius: 8px; padding: 6px 8px; font-size: 12.5px;
+  }
+  .media-item img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+  .media-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d6d7dc; }
+  .media-item .meta { color: #7c7d85; font-size: 11px; flex-shrink: 0; }
+  .empty-hint { font-size: 12px; color: #6e6f77; padding: 4px 4px; }
+
+  #stageArea { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #canvasWrap {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #0e0f12; position: relative; min-height: 0; padding: 12px;
+  }
+  #stage { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; background: #000; border-radius: 6px; box-shadow: 0 0 0 1px #2b2c33; }
+  #transport {
+    display: flex; align-items: center; gap: 12px; padding: 10px clamp(10px,2vw,16px);
+    background: #1c1d22; border-top: 1px solid #2b2c33; flex-wrap: wrap;
+  }
+  #timeLabel { font-size: 12.5px; color: #9a9ba3; font-variant-numeric: tabular-nums; }
+  #exportStatus { font-size: 12px; color: #4c6ef5; margin-left: auto; }
+
+  #timelinePanel { background: #1c1d22; border-top: 1px solid #2b2c33; padding: 10px clamp(10px,2vw,16px) 16px; flex-shrink: 0; }
+  #ruler { height: 18px; position: relative; margin-bottom: 6px; font-size: 10px; color: #6e6f77; }
+  #timelineScroll { overflow-x: auto; padding-bottom: 4px; }
+  .track { position: relative; height: 30px; background: #14151a; border-radius: 6px; margin-bottom: 6px; min-width: 100%; }
+  .track.imgtrack { height: 58px; }
+  #playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #e64980; left: 0; pointer-events: none; z-index: 5; }
+  .clip {
+    position: absolute; top: 2px; bottom: 2px; border-radius: 6px; overflow: hidden;
+    border: 1px solid #3a3b44; cursor: grab; background: #23242b;
+  }
+  .clip.selected { border: 2px solid #4c6ef5; }
+  .clip img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; display: block; }
+  .clip .handle { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; background: rgba(0,0,0,.35); }
+  .clip .handle.l { left: 0; } .clip .handle.r { right: 0; }
+  .clip .del {
+    position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; padding: 0;
+    background: #e64980; border: none; border-radius: 4px; font-size: 10px;
+  }
+  .audiobar {
+    position: absolute; top: 0; bottom: 0; left: 0; border-radius: 6px;
+    background: repeating-linear-gradient(90deg, #364fc7, #364fc7 2px, #3b56d6 2px, #3b56d6 4px);
+    display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: #cdd4ff;
+  }
+
+  @media (max-width: 900px) {
+    #main { flex-direction: column; }
+    #sidebar {
+      width: 100%; max-height: 160px; border-right: none; border-bottom: 1px solid #2b2c33;
+      flex-direction: row; overflow-x: auto; overflow-y: hidden;
+    }
+    .section { border-bottom: none; border-right: 1px solid #2b2c33; min-width: 220px; }
+    #topbar h1 span.subtitle { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1><i class="ti ti-movie"></i>&nbsp; Video Editor</h1>
+  <div class="actions">
+    <button id="btnAutoArrange"><i class="ti ti-arrows-shuffle"></i> Auto-joylash</button>
+    <button id="btnFullscreen"><i class="ti ti-maximize"></i> Full screen</button>
+    <button id="btnDownload" class="primary"><i class="ti ti-download"></i> Download</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div class="section">
+      <div class="section-header">
+        <span class="title"><i class="ti ti-music"></i> Audio <span class="count" id="audioCount">0</span></span>
+        <label class="add-label" for="audioInput"><i class="ti ti-plus"></i></label>
+      </div>
+      <div class="section-body" id="audioList"><div class="empty-hint">Audio yuklanmagan</div></div>
+      <input type="file" id="audioInput" accept="audio/*" style="display:none;">
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <span class="title"><i class="ti ti-photo"></i> Rasmlar <span class="count" id="imgCount">0</span></span>
+        <label class="add-label" for="imgInput"><i class="ti ti-plus"></i></label>
+      </div>
+      <div class="section-body" id="imgList"><div class="empty-hint">Rasm yuklanmagan</div></div>
+      <input type="file" id="imgInput" accept="image/*" multiple style="display:none;">
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <span class="title"><i class="ti ti-file-text"></i> Skript <span class="count" id="scriptCount">0</span></span>
+        <label class="add-label" for="scriptInput"><i class="ti ti-plus"></i></label>
+      </div>
+      <div class="section-body" id="scriptList"><div class="empty-hint">Skript yuklanmagan</div></div>
+      <input type="file" id="scriptInput" accept=".txt" multiple style="display:none;">
+    </div>
+  </div>
+
+  <div id="stageArea">
+    <div id="canvasWrap"><canvas id="stage" width="1280" height="720"></canvas></div>
+    <div id="transport">
+      <button id="btnPlay"><i class="ti ti-player-play" id="playIcon"></i></button>
+      <span id="timeLabel">00:00 / 00:00</span>
+      <span id="exportStatus"></span>
+    </div>
+    <div id="timelinePanel">
+      <div id="ruler"></div>
+      <div id="timelineScroll">
+        <div class="track" id="tlAudioTrack"></div>
+        <div class="track imgtrack" id="tlImageTrack"></div>
+        <div id="playhead"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var PPS = 60;
+  var audio = null;
+  var images = [];
+  var scripts = [];
+  var clips = [];
+  var selectedId = null;
+  var playing = false;
+  var dragCtx = null;
+
+  var audioInput = document.getElementById("audioInput");
+  var imgInput = document.getElementById("imgInput");
+  var scriptInput = document.getElementById("scriptInput");
+
+  function parseTiming(name){
+    var m = name.match(/^S(\d{1,2})-(\d{1,2})_(.+)\.(png|jpg|jpeg)$/i);
+    if(!m) return null;
+    return {start: parseInt(m[1],10)*60 + parseInt(m[2],10), desc: m[3]};
+  }
+  function esc(s){ return (s||"").replace(/[&<>]/g, function(c){ return ({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]; }); }
+  function formatT(t){ if(!isFinite(t)) return "00:00"; var m=Math.floor(t/60), s=Math.floor(t%60); return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"); }
+
+  audioInput.addEventListener("change", function(e){
+    var f = e.target.files[0];
+    if(!f) return;
+    var url = URL.createObjectURL(f);
+    var el = new Audio(url);
+    el.preload = "metadata";
+    el.onloadedmetadata = function(){ renderLists(); autoArrange(); renderTimeline(); updateTimeLabel(); };
+    audio = {file:f, url:url, el:el, name:f.name, ctxReady:false};
+    renderLists();
+    e.target.value = "";
+  });
+
+  imgInput.addEventListener("change", function(e){
+    var files = Array.prototype.slice.call(e.target.files);
+    files.forEach(function(f){
+      var t = parseTiming(f.name);
+      var url = URL.createObjectURL(f);
+      var im = new Image();
+      im.src = url;
+      images.push({
+        id: "img" + Math.random().toString(36).slice(2),
+        file: f, url: url, name: f.name, img: im,
+        start: t ? t.start : (images.length ? images[images.length-1].start + 3 : 0),
+        desc: t ? t.desc : f.name
+      });
+      im.onload = function(){ drawStage(getCurrentTime()); };
+    });
+    images.sort(function(a,b){ return a.start - b.start; });
+    renderLists();
+    autoArrange();
+    renderTimeline();
+    e.target.value = "";
+  });
+
+  scriptInput.addEventListener("change", function(e){
+    var files = Array.prototype.slice.call(e.target.files);
+    files.forEach(function(f){
+      var reader = new FileReader();
+      reader.onload = function(){
+        scripts.push({id:"sc"+Math.random().toString(36).slice(2), name:f.name, text:reader.result});
+        renderLists();
+      };
+      reader.readAsText(f);
+    });
+    e.target.value = "";
+  });
+
+  function renderLists(){
+    document.getElementById("audioCount").textContent = audio ? 1 : 0;
+    document.getElementById("imgCount").textContent = images.length;
+    document.getElementById("scriptCount").textContent = scripts.length;
+
+    var aList = document.getElementById("audioList");
+    aList.innerHTML = "";
+    if(audio){
+      var dur = isFinite(audio.el.duration) ? formatT(audio.el.duration) : "...";
+      var row = document.createElement("div");
+      row.className = "media-item";
+      row.innerHTML = '<i class="ti ti-music"></i><span class="name">'+esc(audio.name)+'</span><span class="meta">'+dur+'</span>';
+      aList.appendChild(row);
+    } else {
+      aList.innerHTML = '<div class="empty-hint">Audio yuklanmagan</div>';
+    }
+
+    var iList = document.getElementById("imgList");
+    iList.innerHTML = "";
+    if(images.length === 0){ iList.innerHTML = '<div class="empty-hint">Rasm yuklanmagan</div>'; }
+    images.forEach(function(im){
+      var r = document.createElement("div");
+      r.className = "media-item";
+      r.innerHTML = '<img src="'+im.url+'"><span class="name">'+esc(im.desc)+'</span><span class="meta">'+formatT(im.start)+'</span>';
+      iList.appendChild(r);
+    });
+
+    var sList = document.getElementById("scriptList");
+    sList.innerHTML = "";
+    if(scripts.length === 0){ sList.innerHTML = '<div class="empty-hint">Skript yuklanmagan</div>'; }
+    scripts.forEach(function(sc){
+      var r = document.createElement("div");
+      r.className = "media-item";
+      r.innerHTML = '<i class="ti ti-file-text"></i><span class="name">'+esc(sc.name)+'</span>';
+      sList.appendChild(r);
+    });
+  }
+
+  function totalDuration(){
+    var audioDur = (audio && isFinite(audio.el.duration)) ? audio.el.duration : 0;
+    var clipsEnd = clips.reduce(function(mx,c){ return Math.max(mx, c.start + c.duration); }, 0);
+    return Math.max(audioDur, clipsEnd, 10);
+  }
+
+  function autoArrange(){
+    var audioDur = (audio && isFinite(audio.el.duration)) ? audio.el.duration : null;
+    clips = images.map(function(im, i){
+      var next = images[i+1];
+      var end = next ? next.start : (audioDur != null ? audioDur : im.start + 3);
+      return { id: "clip"+im.id, imgId: im.id, start: im.start, duration: Math.max(0.3, end-im.start), url: im.url, img: im.img, name: im.desc };
+    });
+  }
+
+  function renderTimeline(){
+    var dur = totalDuration();
+    var width = Math.max(800, dur * PPS);
+
+    var ruler = document.getElementById("ruler");
+    ruler.style.width = width + "px";
+    ruler.innerHTML = "";
+    for(var t=0; t<dur; t+=5){
+      var tick = document.createElement("div");
+      tick.style.cssText = "position:absolute;left:"+(t*PPS)+"px;top:0;";
+      tick.textContent = formatT(t);
+      ruler.appendChild(tick);
+    }
+
+    var audioTrack = document.getElementById("tlAudioTrack");
+    audioTrack.style.width = width + "px";
+    audioTrack.innerHTML = "";
+    if(audio && isFinite(audio.el.duration)){
+      var bar = document.createElement("div");
+      bar.className = "audiobar";
+      bar.style.width = (audio.el.duration*PPS) + "px";
+      bar.textContent = audio.name;
+      audioTrack.appendChild(bar);
+    }
+
+    var imgTrack = document.getElementById("tlImageTrack");
+    imgTrack.style.width = width + "px";
+    imgTrack.innerHTML = "";
+    clips.forEach(function(c){
+      var el = document.createElement("div");
+      el.className = "clip" + (c.id === selectedId ? " selected" : "");
+      el.style.left = (c.start*PPS) + "px";
+      el.style.width = (c.duration*PPS) + "px";
+
+      var img = document.createElement("img");
+      img.src = c.url;
+      el.appendChild(img);
+
+      ["l","r"].forEach(function(side){
+        var h = document.createElement("div");
+        h.className = "handle " + side;
+        h.dataset.side = side;
+        el.appendChild(h);
+      });
+
+      if(c.id === selectedId){
+        var del = document.createElement("button");
+        del.className = "del";
+        del.innerHTML = '<i class="ti ti-trash"></i>';
+        del.onclick = function(ev){
+          ev.stopPropagation();
+          clips = clips.filter(function(cc){ return cc.id !== c.id; });
+          selectedId = null;
+          renderTimeline();
+        };
+        el.appendChild(del);
+      }
+
+      el.onmousedown = function(ev){
+        if(ev.target.classList.contains("handle") || ev.target.closest(".del")) return;
+        selectedId = c.id;
+        dragCtx = {type:"move", id:c.id, startX:ev.clientX, origStart:c.start};
+        renderTimeline();
+        ev.preventDefault();
+      };
+
+      imgTrack.appendChild(el);
+    });
+
+    document.querySelectorAll(".handle").forEach(function(h){
+      h.onmousedown = function(ev){
+        ev.stopPropagation();
+        var clipEl = h.closest(".clip");
+        var idx = Array.prototype.indexOf.call(imgTrack.children, clipEl);
+        var clip = clips[idx];
+        dragCtx = {type:"resize", side:h.dataset.side, id:clip.id, startX:ev.clientX, origStart:clip.start, origDur:clip.duration};
+        ev.preventDefault();
+      };
+    });
+
+    drawStage(getCurrentTime());
+  }
+
+  document.addEventListener("mousemove", function(ev){
+    if(!dragCtx) return;
+    var dt = (ev.clientX - dragCtx.startX) / PPS;
+    var clip = clips.filter(function(c){ return c.id === dragCtx.id; })[0];
+    if(!clip) return;
+    if(dragCtx.type === "move"){
+      clip.start = Math.max(0, dragCtx.origStart + dt);
+    } else {
+      if(dragCtx.side === "r"){
+        clip.duration = Math.max(0.3, dragCtx.origDur + dt);
+      } else {
+        var newStart = Math.max(0, dragCtx.origStart + dt);
+        var delta = newStart - dragCtx.origStart;
+        clip.start = newStart;
+        clip.duration = Math.max(0.3, dragCtx.origDur - delta);
+      }
+    }
+    renderTimeline();
+  });
+  document.addEventListener("mouseup", function(){ dragCtx = null; });
+
+  document.getElementById("btnAutoArrange").onclick = function(){ autoArrange(); renderTimeline(); };
+
+  var canvas = document.getElementById("stage");
+  var ctx = canvas.getContext("2d");
+  function drawStage(t){
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    var current = clips.filter(function(c){ return t >= c.start && t < c.start + c.duration; })[0];
+    if(current && current.img && current.img.complete && current.img.naturalWidth){
+      var iw = current.img.naturalWidth, ih = current.img.naturalHeight;
+      var scale = Math.min(canvas.width/iw, canvas.height/ih);
+      var w = iw*scale, h = ih*scale;
+      ctx.drawImage(current.img, (canvas.width-w)/2, (canvas.height-h)/2, w, h);
+    }
+  }
+
+  function getCurrentTime(){ return audio ? audio.el.currentTime : 0; }
+  function updateTimeLabel(){
+    var cur = getCurrentTime();
+    var dur = (audio && isFinite(audio.el.duration)) ? audio.el.duration : totalDuration();
+    document.getElementById("timeLabel").textContent = formatT(cur) + " / " + formatT(dur);
+    document.getElementById("playhead").style.left = (cur*PPS) + "px";
+  }
+
+  function loop(){
+    if(!playing) return;
+    drawStage(getCurrentTime());
+    updateTimeLabel();
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById("btnPlay").onclick = function(){
+    if(!audio) return;
+    if(playing){
+      audio.el.pause();
+      playing = false;
+      document.getElementById("playIcon").className = "ti ti-player-play";
+    } else {
+      audio.el.play();
+      playing = true;
+      document.getElementById("playIcon").className = "ti ti-player-pause";
+      requestAnimationFrame(loop);
+    }
+  };
+
+  document.getElementById("btnFullscreen").onclick = function(){
+    if(!document.fullscreenElement){
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  function ensureAudioGraph(){
+    if(!audio || audio.ctxReady) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    audio.audioCtx = new AC();
+    audio.srcNode = audio.audioCtx.createMediaElementSource(audio.el);
+    audio.destNode = audio.audioCtx.createMediaStreamDestination();
+    audio.srcNode.connect(audio.destNode);
+    audio.srcNode.connect(audio.audioCtx.destination);
+    audio.ctxReady = true;
+  }
+
+  document.getElementById("btnDownload").onclick = function(){
+    var st = document.getElementById("exportStatus");
+    if(!audio || clips.length === 0){
+      st.textContent = "Avval audio va kamida bitta rasm qoshing.";
+      return;
+    }
+    ensureAudioGraph();
+    if(audio.audioCtx.state === "suspended") audio.audioCtx.resume();
+    st.textContent = "Eksport qilinmoqda...";
+
+    var stream = canvas.captureStream(30);
+    var combined = new MediaStream(stream.getVideoTracks().concat(audio.destNode.stream.getAudioTracks()));
+    var mime = "video/webm;codecs=vp9,opus";
+    if(!MediaRecorder.isTypeSupported(mime)) mime = "video/webm";
+    var recorder = new MediaRecorder(combined, {mimeType: mime});
+    var chunks = [];
+
+    recorder.ondataavailable = function(e){ if(e.data.size > 0) chunks.push(e.data); };
+
+    recorder.onstop = function(){
+      var blob = new Blob(chunks, {type:"video/webm"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "video-export.webm";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      st.textContent = "Tayyor. Fayl yuklab olindi.";
+      setTimeout(function(){ st.textContent = ""; }, 4000);
+    };
+
+    recorder.onerror = function(){
+      st.textContent = "Xatolik: eksport bajarilmadi.";
+    };
+
+    audio.el.currentTime = 0;
+    recorder.start();
+    audio.el.play();
+    playing = true;
+    document.getElementById("playIcon").className = "ti ti-player-pause";
+    requestAnimationFrame(loop);
+
+    audio.el.onended = function(){
+      recorder.stop();
+      playing = false;
+      document.getElementById("playIcon").className = "ti ti-player-play";
+      audio.el.onended = null;
+    };
+  };
+
+  window.addEventListener("resize", function(){ drawStage(getCurrentTime()); });
+
+  renderTimeline();
+})();
+</script>
+</body>
+</html>
